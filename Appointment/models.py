@@ -106,15 +106,6 @@ class RoomQuerySet(models.QuerySet['Room']):
         '''只保留所有可用的房间'''
         return self.filter(Rstatus__in=[Room.Status.UNLIMITED, Room.Status.PERMITTED])
 
-    def basement_only(self):
-        '''只保留所有地下室的房间'''
-        return self.exclude(Rid__icontains="R")
-
-    def russian_only(self):
-        '''只保留所有俄文楼的房间'''
-        return self.filter(Rid__icontains="R")
-
-
 class RoomManager(models.Manager['Room']):
     def get_queryset(self) -> RoomQuerySet:
         return RoomQuerySet(self.model, using=self._db, hints=self._hints)
@@ -128,25 +119,7 @@ class RoomManager(models.Manager['Room']):
     def unlimited(self):
         return self.get_queryset().unlimited()
 
-    def function_rooms(self):
-        '''获取所有可预约功能房'''
-        titles = ['航模', '绘画', '书法', '活动']
-        title_query = ~Q(Rtitle__icontains="研讨")
-        title_query |= Q(Rtitle__icontains="/")
-        for room_title in titles:
-            title_query |= Q(Rtitle__icontains=room_title)
-        return self.get_queryset().permitted().basement_only().filter(title_query)
-
-    def talk_rooms(self):
-        '''获取所有研讨室'''
-        return self.get_queryset().permitted().filter(Rtitle__icontains="研讨")
-
-    def russian_rooms(self):
-        '''获取所有可预约俄文楼教室'''
-        return self.get_queryset().permitted().russian_only()
-
     def interview_room_ids(self):
-        '''获取所有可面试俄文楼教室'''
         return set()
 
 
@@ -210,8 +183,13 @@ class Room(models.Model):
 
     @property
     def reservable(self) -> bool:
+        '''是否可预约'''
+        return self.Rstatus == Room.Status.PERMITTED
+
+    @property
+    def quick_reservable(self) -> bool:
         '''是否支持快速预约'''
-        return self.classes.filter(quick_reservable=True).exists()
+        return self.classes.filter(quick_reservable=True).exists() and self.reservable
 
     def __str__(self):
         return self.Rid + ' ' + self.Rtitle

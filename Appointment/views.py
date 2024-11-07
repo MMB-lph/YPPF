@@ -386,44 +386,14 @@ def arrange_time(request: HttpRequest):
     选择预约时间
     """
 
-    # 只接受GET方法，不接受POST方法
-    if request.method == 'POST':
-        return redirect(reverse('Appointment:index'))
-
+    room = Room.objects.permitted().get(Rid=request.GET.get('Rid'))
     # 判断当前用户是否可以进行长期预约
     has_longterm_permission = get_participant(request.user).longterm
-
-    # 获取房间编号
-    Rid = request.GET.get('Rid')
-    try:
-        room: Room = Room.objects.get(Rid=Rid)
-        room_object = room  # 用于前端使用
-    except:
-        return redirect(
-            message_url(wrong(f"房间号{Rid}不存在!"),
-                        reverse("Appointment:account")))
-
-    if room.Rstatus == Room.Status.FORBIDDEN:
-        return render(request, 'Appointment/booking.html', locals())
-
-    # start_week=0代表查看本周，start_week=1代表查看下周
-    start_week = request.GET.get('start_week')
-    if start_week is None:
-        is_longterm = False
-        start_week = 0
-    else:
-        is_longterm = True
-    try:
-        start_week = int(start_week)
-        # 参数检查
-        assert start_week == 0 or start_week == 1
-        assert has_longterm_permission or not is_longterm
-    except:
-        return redirect(reverse('Appointment:index'))
-
+    is_longterm = (request.GET.get(
+        'longterm') == 'on') and has_longterm_permission
+    next_week = (request.GET.get('start_week') == '1') and is_longterm
     dayrange_list, start_day, end_next_day = web_func.get_dayrange(
-        day_offset=start_week * 7)
-
+        day_offset=7 if next_week else 0)
     # 获取预约时间的最大时间块id
     max_stamp_id = web_func.get_time_id(room, room.Rfinish, mode="leftopen")
 
@@ -453,14 +423,14 @@ def arrange_time(request: HttpRequest):
 
     # 筛选已经存在的预约
     appoints: QuerySet[Appoint] = Appoint.objects.not_canceled().filter(
-        Room_id=Rid, Afinish__gte=start_day, Astart__date__lt=end_next_day)
+        Room_id=room.Rid, Afinish__gte=start_day, Astart__date__lt=end_next_day)
 
     start_day = dayrange_list[0]
     start_day = date(start_day['year'], start_day['month'], start_day['day'])
     # 给出已有预约的信息
     # TODO: 后续可优化
     for appoint in appoints:
-        change_id_list = web_func.timerange2idlist(Rid, appoint.Astart,
+        change_id_list = web_func.timerange2idlist(room.Rid, appoint.Astart,
                                                    appoint.Afinish,
                                                    max_stamp_id)
         appoint_usage = html.escape(appoint.Ausage).replace('\n', '<br/>')
@@ -505,19 +475,25 @@ def arrange_time(request: HttpRequest):
             day['timesection'][i]['display_info'] = display_info
 
     # 删去今天已经过去的时间
-    if start_week == 0:
+    if not next_week:
         curr_stamp_id = web_func.get_time_id(room, datetime.now().time())
         for i in range(min(max_stamp_id, curr_stamp_id) + 1):
             dayrange_list[0]['timesection'][i]['status'] = TimeStatus.PASSED
 
-    # 转换成方便前端使用的形式
-    js_dayrange_list = json.dumps(dayrange_list)
-
-    # 获取房间信息，以支持房间切换的功能
-    function_room_list = Room.objects.function_rooms().order_by('Rid')
-    talk_room_list = Room.objects.talk_rooms().order_by('Rid')
-
-    return render(request, 'Appointment/booking.html', locals())
+    render_context = dict(
+        room_object=room,
+        is_longterm=is_longterm,
+        has_longterm_permission=has_longterm_permission,
+        start_week=1 if next_week else 0,
+        dayrange_list=dayrange_list,
+        # 转换成方便前端使用的形式
+        js_dayrange_list=json.dumps(dayrange_list),
+        # 获取房间信息，以支持房间切换的功能
+        reservable_room_classes=RoomClass.objects.filter(
+            reservable=True).order_by('sort_idx'),
+        TimeStatus=TimeStatus,
+    )
+    return render(request, 'Appointment/booking.html', render_context)
 
 
 @identity_check(redirect_field_name='origin')
