@@ -18,6 +18,7 @@ __all__ = [
     'User',
     'College_Announcement',
     'Participant',
+    'RoomClass',
     'Room',
     'Appoint',
     'LongTermAppoint',
@@ -149,6 +150,24 @@ class RoomManager(models.Manager['Room']):
         return set()
 
 
+class RoomClass(models.Model):
+    class Meta:
+        verbose_name = '房间类别'
+        verbose_name_plural = verbose_name
+
+    sort_idx = models.SmallIntegerField('主页排序')
+    name = models.CharField('类别名称', max_length=32, unique=True)
+    description = models.CharField(
+        '类别描述', max_length=256, blank=True, default='')
+    reservable = models.BooleanField('可预约', default=True)
+    quick_reservable = models.BooleanField('临时预约', default=False)
+    rooms = models.ManyToManyField(
+        'Room', verbose_name='房间列表', db_index=True, related_name='classes')
+
+    # Used for room's many-to-many field
+    def __str__(self):
+        return self.name
+
 class Room(models.Model):
     class Meta:
         verbose_name = '房间'
@@ -165,6 +184,7 @@ class Room(models.Model):
     Rfinish = models.TimeField('最迟预约时间')
     Rlatest_time = models.DateTimeField("摄像头心跳", auto_now_add=True)
     Rpresent = models.IntegerField('目前人数', default=0)
+    image = models.ImageField('房间图片', upload_to='room_images', null=True)
 
     # Rstatus 标记当前房间是否允许预约，可由管理员修改
     class Status(models.IntegerChoices):
@@ -187,6 +207,11 @@ class Room(models.Model):
         return cast('ManyRelatedManager[Appoint]', self.appoint_list)
 
     objects: RoomManager = RoomManager()
+
+    @property
+    def reservable(self) -> bool:
+        '''是否支持快速预约'''
+        return self.classes.filter(quick_reservable=True).exists()
 
     def __str__(self):
         return self.Rid + ' ' + self.Rtitle
