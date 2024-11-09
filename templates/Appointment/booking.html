@@ -67,7 +67,7 @@
                                     <div class="doctor-widget">
                                         <div class="doc-info-left" data-toggle="modal" data-target="#room-switcher" style="cursor: pointer;">
                                             <div class="doctor-img">
-                                                <img src="{{ room_object.image }}" class="img-fluid" alt="Room Image">
+                                                <img src="/media/{{ room_object.image }}" class="img-fluid" alt="Room Image">
                                             </div>
                                             <div class="doc-info-cont">
                                                 <h4 class="doc-name">{{ room_object }}</h4>
@@ -247,7 +247,7 @@
                                         <a href="/underground/arrange_time?Rid={{ room.Rid }}">
                                             <div class="d-flex" style="cursor: pointer;height:4rem;">
                                                 <div class="h-100 mr-3">
-                                                    <img src="{{ room.image }}" class="img-fluid h-100" alt="Room Image">
+                                                    <img src="/media/{{ room.image }}" class="img-fluid h-100" alt="Room Image">
                                                 </div>
                                                 <div class="h-100">
                                                     <h5 class="doc-name">{{ room }}</h5>
